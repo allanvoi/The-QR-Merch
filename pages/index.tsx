@@ -18,16 +18,28 @@ export default function QRQuoteGenerator() {
   };
 
   const downloadQR = () => {
-    if (!qrRef.current) return;
+    const canvas = qrRef.current?.querySelector("canvas") as HTMLCanvasElement | null;
+    if (!canvas) return;
 
-    const canvasElement = qrRef.current.querySelector("canvas");
-    if (!(canvasElement instanceof HTMLCanvasElement)) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    const url = canvasElement.toDataURL("image/png");
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "qr-code.png";
-    link.click();
+    const logo = new Image();
+    logo.crossOrigin = "anonymous"; // Ensure CORS
+    logo.src = "https://i.imgur.com/tHoIHUt.png"; // Your logo URL
+
+    logo.onload = () => {
+      const logoSize = qrSize * 0.2;
+      const x = (qrSize - logoSize) / 2;
+      const y = (qrSize - logoSize) / 2;
+      ctx.drawImage(logo, x, y, logoSize, logoSize);
+
+      const url = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "qr-code.png";
+      link.click();
+    };
   };
 
   const clearQR = () => {
@@ -48,6 +60,7 @@ export default function QRQuoteGenerator() {
         alignItems: "center",
         justifyContent: "center",
         background: "#f3f4f6",
+        padding: "1rem",
       }}
     >
       <div
@@ -154,8 +167,12 @@ export default function QRQuoteGenerator() {
               size={qrSize}
               fgColor={fgColor}
               bgColor={bgColor}
+              includeMargin={true}
+              level="H"
             />
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+            <div
+              style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}
+            >
               <button
                 onClick={downloadQR}
                 style={{
