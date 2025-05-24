@@ -4,7 +4,10 @@ import { QRCodeCanvas } from "qrcode.react";
 export default function QRQuoteGenerator() {
   const [text, setText] = useState("");
   const [qrVisible, setQrVisible] = useState(false);
-  const qrRef = useRef(null);
+  const [fgColor, setFgColor] = useState("#000000");
+  const [bgColor, setBgColor] = useState("#ffffff");
+  const [qrSize, setQrSize] = useState(256);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   const generateQR = () => {
     if (text.trim()) {
@@ -29,6 +32,11 @@ export default function QRQuoteGenerator() {
     setQrVisible(false);
   };
 
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(text);
+    alert("Text copied to clipboard!");
+  };
+
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f3f4f6" }}>
       <div style={{ background: "#fff", padding: "2rem", borderRadius: "8px", boxShadow: "0 4px 10px rgba(0,0,0,0.1)", width: "100%", maxWidth: "400px" }}>
@@ -39,6 +47,22 @@ export default function QRQuoteGenerator() {
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
+
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+          <input type="color" value={fgColor} onChange={(e) => setFgColor(e.target.value)} title="Foreground color" />
+          <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} title="Background color" />
+          <input
+            type="number"
+            value={qrSize}
+            onChange={(e) => setQrSize(Number(e.target.value))}
+            min={64}
+            max={512}
+            step={32}
+            style={{ width: "60px" }}
+            title="QR Code size"
+          />
+        </div>
+
         <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
           <button
             onClick={generateQR}
@@ -56,17 +80,24 @@ export default function QRQuoteGenerator() {
 
         {qrVisible && text && (
           <div ref={qrRef} style={{ marginTop: "1.5rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <QRCodeCanvas value={text} size={256} />
-            <button
-              onClick={downloadQR}
-              style={{ marginTop: "1rem", padding: "0.5rem", backgroundColor: "#10b981", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
-            >
-              Download QR
-            </button>
+            <QRCodeCanvas value={text} size={qrSize} fgColor={fgColor} bgColor={bgColor} />
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+              <button
+                onClick={downloadQR}
+                style={{ flex: 1, padding: "0.5rem", backgroundColor: "#10b981", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+              >
+                Download QR
+              </button>
+              <button
+                onClick={copyToClipboard}
+                style={{ flex: 1, padding: "0.5rem", backgroundColor: "#8b5cf6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+              >
+                Copy Text
+              </button>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
-
