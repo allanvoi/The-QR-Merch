@@ -1,152 +1,101 @@
-// pages/index.tsx
-
 import { useEffect, useRef, useState } from "react";
-import { auth } from "@/lib/firebaseConfig";
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { getCredits, incrementCredits, MAX_GUEST_CREDITS, resetCredits } from "@/utils/creditLimiter";
+import QRCodeStyling from "qr-code-styling";
 import toast, { Toaster } from "react-hot-toast";
+import { getCredits, incrementCredits, MAX_GUEST_CREDITS } from "../utils/creditLimiter";
 
-// Defer loading of QRCodeStyling to client only
-let QRCodeStyling: any;
-
-export default function Home() {
-  const [text, setText] = useState("");
-  const [qrColor, setQrColor] = useState("#000000");
-  const [bgColor, setBgColor] = useState("#ffffff");
-  const [user, setUser] = useState<any>(null);
+const IndexPage = () => {
+  const [inputText, setInputText] = useState("");
+  const [qrCode, setQrCode] = useState<QRCodeStyling | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
-  const qrCodeInstance = useRef<any>(null);
-
-  // Load QR code library and initialize instance
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const loadQRCode = async () => {
-      const mod = await import("qr-code-styling");
-      QRCodeStyling = mod.default;
-
-      qrCodeInstance.current = new QRCodeStyling({
-        width: 300,
-        height: 300,
-        type: "canvas",
-        data: "",
-        image: "/logo.png",
-        dotsOptions: {
-          color: qrColor,
-          type: "rounded",
-        },
-        backgroundOptions: {
-          color: bgColor,
-        },
-        imageOptions: {
-          crossOrigin: "anonymous",
-          margin: 10,
-        },
-      });
-    };
-
-    loadQRCode();
-  }, []);
-
-  // Watch for user login state
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (user) resetCredits();
-    });
-    return () => unsubscribe();
-  }, []);
 
   const handleGenerate = () => {
-    if (!text.trim()) return toast.error("Please enter a quote.");
-
-    if (!user) {
-      const credits = getCredits();
-      if (credits >= MAX_GUEST_CREDITS) {
-        toast.error("Limit reached. Please log in.");
-        return;
-      }
-      incrementCredits();
+    if (!inputText.trim()) {
+      toast.error("Please enter a quote or phrase");
+      return;
     }
 
-    if (!qrCodeInstance.current) return;
+    if (inputText.length > 100) {
+      toast.error("Limit your quote to 100 characters.");
+      return;
+    }
 
-    qrCodeInstance.current.update({
-      data: text,
-      dotsOptions: { color: qrColor },
-      backgroundOptions: { color: bgColor },
+    const currentCredits = getCredits();
+    if (currentCredits >= MAX_GUEST_CREDITS) {
+      toast.error("Guest limit reached. Please sign in to generate more QR codes.");
+      return;
+    }
+
+    const qr = new QRCodeStyling({
+      width: 256,
+      height: 256,
+      type: "svg",
+      data: inputText,
+      image: "",
+      dotsOptions: {
+        color: "#000000",
+        type: "rounded",
+      },
+      backgroundOptions: {
+        color: "#ffffff",
+      },
+      cornersSquareOptions: {
+        type: "extra-rounded",
+        color: "#000000",
+      },
     });
 
-    // Clear and re-append
-    if (qrRef.current) {
-      qrRef.current.innerHTML = ""; // Clear previous QR
-      qrCodeInstance.current.append(qrRef.current);
-    }
-
-    toast.success("QR Code generated!");
+    setQrCode(qr);
+    incrementCredits();
+    toast.success("QR code generated!");
   };
 
   const handleDownload = () => {
-    if (!qrCodeInstance.current) return;
-    qrCodeInstance.current.download({
-      name: "qr-quote",
-      extension: "png",
-    });
+    if (qrCode) {
+      qrCode.download({ name: "qr-quote", extension: "png" });
+    }
   };
 
-  const handleLogout = () => {
-    signOut(auth);
-    resetCredits();
-    toast("Logged out");
-  };
+  useEffect(() => {
+    if (qrCode && qrRef.current) {
+      qrRef.current.innerHTML = "";
+      qrCode.append(qrRef.current);
+    }
+  }, [qrCode]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-gray-50 text-gray-800">
-      <Toaster />
-      <h1 className="text-3xl font-bold mb-4">QR Quote Generator</h1>
+    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+      <Toaster position="top-right" />
+      <div className="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg">
+        <h1 className="text-2xl font-bold text-center mb-4">QR Quote Generator</h1>
 
-      <textarea
-        maxLength={100}
-        placeholder="Enter your quote (max 100 characters)"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        className="w-full max-w-md p-3 border rounded mb-4"
-      />
+        <textarea
+          className="w-full p-3 border border-gray-300 rounded-md resize-none"
+          placeholder="Enter your quote (max 100 characters)"
+          maxLength={100}
+          rows={3}
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+        />
 
-      <div className="flex gap-4 mb-4">
-        <div>
-          <label className="block text-sm font-semibold">QR Color</label>
-          <input type="color" value={qrColor} onChange={(e) => setQrColor(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-sm font-semibold">Background Color</label>
-          <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
-        </div>
-      </div>
-
-      <div className="flex gap-3 mb-6">
-        <button onClick={handleGenerate} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-          Generate QR
-        </button>
-        <button onClick={handleDownload} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-          Download QR
-        </button>
-      </div>
-
-      <div ref={qrRef} className="mb-6" />
-
-      {user ? (
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">Logged in as: {user.email}</p>
-          <button onClick={handleLogout} className="mt-2 text-red-600 underline">
-            Logout
+        <div className="mt-4 flex justify-between">
+          <button
+            onClick={handleGenerate}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+          >
+            Generate QR
+          </button>
+          <button
+            onClick={handleDownload}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+          >
+            Download
           </button>
         </div>
-      ) : (
-        <p className="mt-6 text-sm text-gray-600">
-          Guest Mode: {MAX_GUEST_CREDITS - getCredits()} / {MAX_GUEST_CREDITS} free generations left
-        </p>
-      )}
+
+        <div ref={qrRef} id="qr-container" className="mt-6 flex justify-center" />
+      </div>
     </div>
   );
-}
+};
+
+export default IndexPage;
