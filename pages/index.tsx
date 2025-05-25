@@ -4,14 +4,12 @@ import { auth } from "../lib/firebaseConfig";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { useRouter } from "next/router";
 
-export default function QRQuoteGenerator() {
+export default function HomePage() {
   const [text, setText] = useState("");
-  const [qrVisible, setQrVisible] = useState(false);
-  const [fgColor, setFgColor] = useState("#000000");
-  const [bgColor, setBgColor] = useState("#ffffff");
-  const [qrSize, setQrSize] = useState(256);
   const [user, setUser] = useState<User | null>(null);
+  const [generatedCount, setGeneratedCount] = useState(0);
   const qrRef = useRef<HTMLDivElement>(null);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -21,199 +19,84 @@ export default function QRQuoteGenerator() {
     return () => unsubscribe();
   }, []);
 
-  const generateQR = () => {
-    if (text.trim()) {
-      setQrVisible(true);
-    } else {
-      setQrVisible(false);
+  const handleGenerate = () => {
+    if (!user && generatedCount >= 5) {
+      alert("Please log in to generate more QR codes.");
+      router.push("/login");
+      return;
+    }
+
+    if (text.length > 100) {
+      alert("QR content must be 100 characters or less.");
+      return;
+    }
+
+    setGeneratedCount((prev) => prev + 1);
+  };
+
+  const downloadQRCode = () => {
+    const canvas = qrRef.current?.querySelector("canvas");
+    if (canvas) {
+      const url = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "qr-quote.png";
+      link.click();
     }
   };
 
-  const downloadQR = () => {
-    const canvas = qrRef.current?.querySelector("canvas");
-    if (!canvas) return;
-    const url = canvas.toDataURL("image/png");
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "qr-code.png";
-    link.click();
-  };
-
-  const clearQR = () => {
-    setText("");
-    setQrVisible(false);
-  };
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(text);
-    alert("Text copied to clipboard!");
-  };
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    setUser(null);
-    router.push("/login");
-  };
-
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(to right, #f0f2f5, #e6ebf1)",
-        padding: "2rem",
-        fontFamily: "Inter, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "500px",
-          margin: "auto",
-          backgroundColor: "#ffffff",
-          borderRadius: "1rem",
-          padding: "2rem",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h1 style={{ textAlign: "center", fontSize: "28px", fontWeight: "bold", marginBottom: "1.5rem" }}>
-          The QR Merch
-        </h1>
-
+    <div className="min-h-screen bg-gray-50 text-gray-800 p-4">
+      <header className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">The QR Merch</h1>
         {user ? (
-          <div style={{ marginBottom: "1rem", textAlign: "center", fontSize: "14px", color: "#555" }}>
-            Logged in as <strong>{user.email}</strong>{" "}
-            <button
-              onClick={handleLogout}
-              style={{
-                marginLeft: "1rem",
-                fontSize: "13px",
-                background: "#f87171",
-                color: "#fff",
-                border: "none",
-                borderRadius: "4px",
-                padding: "0.3rem 0.6rem",
-                cursor: "pointer",
-              }}
-            >
-              Logout
-            </button>
+          <div>
+            <span className="mr-2">Hi, {user.email}</span>
+            <button onClick={() => signOut(auth)} className="px-4 py-2 bg-red-500 text-white rounded">Logout</button>
           </div>
         ) : (
-          <div style={{ textAlign: "center", marginBottom: "1rem" }}>
-            <button
-              onClick={() => router.push("/login")}
-              style={{
-                fontSize: "14px",
-                background: "#3b82f6",
-                color: "#fff",
-                border: "none",
-                borderRadius: "6px",
-                padding: "0.4rem 0.8rem",
-                cursor: "pointer",
-              }}
-            >
-              Login / Signup
-            </button>
+          <div>
+            <button onClick={() => router.push("/login")} className="px-4 py-2 bg-blue-500 text-white rounded">Login / Signup</button>
           </div>
         )}
+      </header>
 
-        <input
-          placeholder="Enter your quote or message"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "0.75rem",
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-            marginBottom: "1rem",
-            fontSize: "16px",
-          }}
-        />
-
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", justifyContent: "center" }}>
-          <input type="color" value={fgColor} onChange={(e) => setFgColor(e.target.value)} />
-          <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
-          <input
-            type="number"
-            value={qrSize}
-            onChange={(e) => setQrSize(Number(e.target.value))}
-            min={64}
-            max={512}
-            step={32}
-            style={{ width: "60px", borderRadius: "6px", padding: "0.25rem", fontSize: "14px" }}
-            title="QR Size"
+      <main className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={100}
+            placeholder="Type your quote or phrase here... (max 100 chars)"
+            className="w-full p-3 border rounded shadow-sm"
           />
-        </div>
-
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+          <div className="mt-2 text-sm text-gray-500">{text.length}/100 characters</div>
           <button
-            onClick={generateQR}
-            style={{
-              flex: 1,
-              background: "#10b981",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              padding: "0.6rem",
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
+            onClick={handleGenerate}
+            className="mt-4 px-4 py-2 bg-green-600 text-white rounded"
           >
-            Generate
-          </button>
-          <button
-            onClick={clearQR}
-            style={{
-              flex: 1,
-              background: "#f59e0b",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              padding: "0.6rem",
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
-          >
-            Clear
+            Generate QR Code
           </button>
         </div>
 
-        {qrVisible && text && (
-          <div ref={qrRef} style={{ textAlign: "center", marginTop: "1rem" }}>
-            <QRCodeCanvas value={text} size={qrSize} fgColor={fgColor} bgColor={bgColor} />
-            <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-              <button
-                onClick={downloadQR}
-                style={{
-                  background: "#3b82f6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "0.5rem 1rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                Download
-              </button>
-              <button
-                onClick={copyToClipboard}
-                style={{
-                  background: "#8b5cf6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "0.5rem 1rem",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                Copy Text
-              </button>
-            </div>
+        <div className="flex flex-col items-center">
+          <div ref={qrRef} className="p-4 bg-white shadow rounded">
+            {text && <QRCodeCanvas value={text} size={256} />}
           </div>
-        )}
-      </div>
+          {text && (
+            <button
+              onClick={downloadQRCode}
+              className="mt-4 px-4 py-2 bg-purple-600 text-white rounded"
+            >
+              Download QR
+            </button>
+          )}
+        </div>
+      </main>
+
+      <footer className="mt-12 text-center text-sm text-gray-400">
+        Free users can generate up to 5 QR codes. Sign in to unlock unlimited access.
+      </footer>
     </div>
   );
 }
