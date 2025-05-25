@@ -1,5 +1,8 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { QRCodeCanvas } from "qrcode.react";
+import { auth } from "../lib/firebaseConfig";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { useRouter } from "next/router";
 
 export default function QRQuoteGenerator() {
   const [text, setText] = useState("");
@@ -7,7 +10,16 @@ export default function QRQuoteGenerator() {
   const [fgColor, setFgColor] = useState("#000000");
   const [bgColor, setBgColor] = useState("#ffffff");
   const [qrSize, setQrSize] = useState(256);
+  const [user, setUser] = useState<User | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const generateQR = () => {
     if (text.trim()) {
@@ -18,28 +30,13 @@ export default function QRQuoteGenerator() {
   };
 
   const downloadQR = () => {
-    const canvas = qrRef.current?.querySelector("canvas") as HTMLCanvasElement | null;
+    const canvas = qrRef.current?.querySelector("canvas");
     if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const logo = new Image();
-    logo.crossOrigin = "anonymous"; // Ensure CORS
-    logo.src = "https://i.imgur.com/tHoIHUt.png"; // Your logo URL
-
-    logo.onload = () => {
-      const logoSize = qrSize * 0.2;
-      const x = (qrSize - logoSize) / 2;
-      const y = (qrSize - logoSize) / 2;
-      ctx.drawImage(logo, x, y, logoSize, logoSize);
-
-      const url = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "qr-code.png";
-      link.click();
-    };
+    const url = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "qr-code.png";
+    link.click();
   };
 
   const clearQR = () => {
@@ -52,63 +49,90 @@ export default function QRQuoteGenerator() {
     alert("Text copied to clipboard!");
   };
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    setUser(null);
+    router.push("/login");
+  };
+
   return (
     <div
       style={{
         minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f3f4f6",
-        padding: "1rem",
+        background: "linear-gradient(to right, #f0f2f5, #e6ebf1)",
+        padding: "2rem",
+        fontFamily: "Inter, sans-serif",
       }}
     >
       <div
         style={{
-          background: "#fff",
+          maxWidth: "500px",
+          margin: "auto",
+          backgroundColor: "#ffffff",
+          borderRadius: "1rem",
           padding: "2rem",
-          borderRadius: "8px",
-          boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-          width: "100%",
-          maxWidth: "400px",
+          boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
         }}
       >
-        <h1
-          style={{
-            textAlign: "center",
-            fontSize: "24px",
-            fontWeight: "bold",
-            marginBottom: "1rem",
-          }}
-        >
-          QR Code Generator
+        <h1 style={{ textAlign: "center", fontSize: "28px", fontWeight: "bold", marginBottom: "1.5rem" }}>
+          The QR Merch
         </h1>
+
+        {user ? (
+          <div style={{ marginBottom: "1rem", textAlign: "center", fontSize: "14px", color: "#555" }}>
+            Logged in as <strong>{user.email}</strong>{" "}
+            <button
+              onClick={handleLogout}
+              style={{
+                marginLeft: "1rem",
+                fontSize: "13px",
+                background: "#f87171",
+                color: "#fff",
+                border: "none",
+                borderRadius: "4px",
+                padding: "0.3rem 0.6rem",
+                cursor: "pointer",
+              }}
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+            <button
+              onClick={() => router.push("/login")}
+              style={{
+                fontSize: "14px",
+                background: "#3b82f6",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                padding: "0.4rem 0.8rem",
+                cursor: "pointer",
+              }}
+            >
+              Login / Signup
+            </button>
+          </div>
+        )}
+
         <input
-          style={{
-            padding: "0.5rem",
-            width: "100%",
-            marginBottom: "1rem",
-            borderRadius: "4px",
-            border: "1px solid #ccc",
-          }}
           placeholder="Enter your quote or message"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "0.75rem",
+            border: "1px solid #ccc",
+            borderRadius: "8px",
+            marginBottom: "1rem",
+            fontSize: "16px",
+          }}
         />
 
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-          <input
-            type="color"
-            value={fgColor}
-            onChange={(e) => setFgColor(e.target.value)}
-            title="Foreground color"
-          />
-          <input
-            type="color"
-            value={bgColor}
-            onChange={(e) => setBgColor(e.target.value)}
-            title="Background color"
-          />
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", justifyContent: "center" }}>
+          <input type="color" value={fgColor} onChange={(e) => setFgColor(e.target.value)} />
+          <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
           <input
             type="number"
             value={qrSize}
@@ -116,8 +140,8 @@ export default function QRQuoteGenerator() {
             min={64}
             max={512}
             step={32}
-            style={{ width: "60px" }}
-            title="QR Code size"
+            style={{ width: "60px", borderRadius: "6px", padding: "0.25rem", fontSize: "14px" }}
+            title="QR Size"
           />
         </div>
 
@@ -126,11 +150,12 @@ export default function QRQuoteGenerator() {
             onClick={generateQR}
             style={{
               flex: 1,
-              padding: "0.5rem",
-              backgroundColor: "#3b82f6",
+              background: "#10b981",
               color: "white",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "6px",
+              padding: "0.6rem",
+              fontWeight: "bold",
               cursor: "pointer",
             }}
           >
@@ -140,11 +165,12 @@ export default function QRQuoteGenerator() {
             onClick={clearQR}
             style={{
               flex: 1,
-              padding: "0.5rem",
-              backgroundColor: "#f87171",
+              background: "#f59e0b",
               color: "white",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "6px",
+              padding: "0.6rem",
+              fontWeight: "bold",
               cursor: "pointer",
             }}
           >
@@ -153,49 +179,32 @@ export default function QRQuoteGenerator() {
         </div>
 
         {qrVisible && text && (
-          <div
-            ref={qrRef}
-            style={{
-              marginTop: "1.5rem",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
-            <QRCodeCanvas
-              value={text}
-              size={qrSize}
-              fgColor={fgColor}
-              bgColor={bgColor}
-              includeMargin={true}
-              level="H"
-            />
-            <div
-              style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}
-            >
+          <div ref={qrRef} style={{ textAlign: "center", marginTop: "1rem" }}>
+            <QRCodeCanvas value={text} size={qrSize} fgColor={fgColor} bgColor={bgColor} />
+            <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", justifyContent: "center" }}>
               <button
                 onClick={downloadQR}
                 style={{
-                  flex: 1,
-                  padding: "0.5rem",
-                  backgroundColor: "#10b981",
+                  background: "#3b82f6",
                   color: "white",
                   border: "none",
-                  borderRadius: "4px",
+                  borderRadius: "6px",
+                  padding: "0.5rem 1rem",
+                  fontWeight: "bold",
                   cursor: "pointer",
                 }}
               >
-                Download QR
+                Download
               </button>
               <button
                 onClick={copyToClipboard}
                 style={{
-                  flex: 1,
-                  padding: "0.5rem",
-                  backgroundColor: "#8b5cf6",
+                  background: "#8b5cf6",
                   color: "white",
                   border: "none",
-                  borderRadius: "4px",
+                  borderRadius: "6px",
+                  padding: "0.5rem 1rem",
+                  fontWeight: "bold",
                   cursor: "pointer",
                 }}
               >
